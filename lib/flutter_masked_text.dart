@@ -126,14 +126,24 @@ class MaskedTextController extends TextEditingController {
 /**
  * Mask for monetary values.
  */
-class MoneyMaskedTextController extends TextEditingController {
-  MoneyMaskedTextController(
+import 'package:flutter/material.dart';
+
+class MoneyMaskController extends TextEditingController {
+  final String decimalSeparator;
+  final String thousandSeparator;
+  final String rightSymbol;
+  final String leftSymbol;
+  final int precision;
+
+  double _lastValue = 0.0;
+
+  MoneyMaskController(
       {double initialValue = 0.0,
-        this.decimalSeparator = ',',
-        this.thousandSeparator = '.',
-        this.rightSymbol = '',
-        this.leftSymbol = '',
-        this.precision = 2}) {
+      this.decimalSeparator = ',',
+      this.thousandSeparator = '.',
+      this.rightSymbol = '',
+      this.leftSymbol = '',
+      this.precision = 2}) {
     _validateConfig();
 
     this.addListener(() {
@@ -144,47 +154,42 @@ class MoneyMaskedTextController extends TextEditingController {
     this.updateValue(initialValue);
   }
 
-  final String decimalSeparator;
-  final String thousandSeparator;
-  final String rightSymbol;
-  final String leftSymbol;
-  final int precision;
+  void updateValue(double currentValue) {
+    double newValue = 0.0;
 
-  Function afterChange = (String maskedValue, double rawValue) {};
-
-  double _lastValue = 0.0;
-
-  void updateValue(double value) {
-    double valueToUse = value;
-
-    if (value.toStringAsFixed(0).length > 12) {
-      valueToUse = _lastValue;
-    }
-    else {
-      _lastValue = value;
+    if (currentValue.toStringAsFixed(0).length > 12) {
+      newValue = _lastValue;
+    } else {
+      newValue = currentValue;
+      _lastValue = currentValue;
     }
 
-    String masked = this._applyMask(valueToUse);
+    String maskedText = this._getMaskedText(newValue);
 
     if (rightSymbol.length > 0) {
-      masked += rightSymbol;
+      maskedText += rightSymbol;
     }
 
     if (leftSymbol.length > 0) {
-      masked = leftSymbol + masked;
+      maskedText = leftSymbol + maskedText;
     }
 
-    if (masked != this.text) {
-      this.text = masked;
-
-      var cursorPosition = super.text.length - this.rightSymbol.length;
-      this.selection = new TextSelection.fromPosition(
-          new TextPosition(offset: cursorPosition));
+    if (maskedText != this.text) {
+      this.text = maskedText;
     }
+
+    final cursorPosition = super.text.length - this.rightSymbol.length;
+
+    this.selection = new TextSelection.fromPosition(
+      new TextPosition(offset: cursorPosition),
+    );
   }
 
+  Function afterChange = (String maskedValue, double rawValue) {};
+
   double get numberValue {
-    List<String> parts = _getOnlyNumbers(this.text).split('').toList(growable: true);
+    List<String> parts =
+        _getNumbersWithoutMask(this.text).split('').toList(growable: true);
 
     parts.insert(parts.length - precision, '.');
 
@@ -192,14 +197,16 @@ class MoneyMaskedTextController extends TextEditingController {
   }
 
   _validateConfig() {
-    bool rightSymbolHasNumbers = _getOnlyNumbers(this.rightSymbol).length > 0;
+    bool rightSymbolHasNumbers = _getNumbersWithoutMask(this.rightSymbol).length > 0;
 
     if (rightSymbolHasNumbers) {
       throw new ArgumentError("rightSymbol must not have numbers.");
     }
   }
 
-  String _getOnlyNumbers(String text) {
+
+
+  String _getNumbersWithoutMask(String text) {
     String cleanedText = text;
 
     var onlyNumbersRegex = new RegExp(r'[^\d]');
@@ -209,8 +216,11 @@ class MoneyMaskedTextController extends TextEditingController {
     return cleanedText;
   }
 
-  String _applyMask(double value) {
-    List<String> textRepresentation = value.toStringAsFixed(precision)
+
+
+  String _getMaskedText(double value) {
+    List<String> textRepresentation = value
+        .toStringAsFixed(precision)
         .replaceAll('.', '')
         .split('')
         .reversed
@@ -221,8 +231,7 @@ class MoneyMaskedTextController extends TextEditingController {
     for (var i = precision + 4; true; i = i + 4) {
       if (textRepresentation.length > i) {
         textRepresentation.insert(i, thousandSeparator);
-      }
-      else {
+      } else {
         break;
       }
     }
